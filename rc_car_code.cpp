@@ -8,8 +8,11 @@ const char* password = "12345678"
 
 #define left_motor_fwd 14  // corr.pin is IN1
 #define left_motor_rev 15  // corr.pin is IN2
-#define right_motor_fwd 13  // corr.pin is IN3 
-#define right_motor_rev 13  // corr.pin is IN4
+#define right_motor_fwd 13 // corr.pin is IN3 
+#define right_motor_rev 12 // corr.pin is IN4
+#define lower_servo 2 
+#define upper_servo 16
+
 
 AsyncWebServer server(80);
 Servo steeringServo;
@@ -33,7 +36,6 @@ void forward() {
   digitalWrite(MOTOR_IN4, LOW);
   analogWrite(MOTOR_ENA, speed);
   analogWrite(MOTOR_ENB, speed);
-  motorStopped = false;
 }
 
 void back() {
@@ -43,7 +45,6 @@ void back() {
   digitalWrite(MOTOR_IN4, HIGH);
   analogWrite(MOTOR_ENA, speed);
   analogWrite(MOTOR_ENB, speed);
-  motorStopped = false;
 }
 
 void left() {
@@ -55,7 +56,6 @@ void left() {
   analogWrite(MOTOR_ENA, speed / 2);
   analogWrite(MOTOR_ENB, speed);
   motorStopped = false;
-  steeringServo.write(45);  // Turn left
 }
 
 void right() {
@@ -67,7 +67,6 @@ void right() {
   analogWrite(MOTOR_ENA, speed);
   analogWrite(MOTOR_ENB, speed / 2);
   motorStopped = false;
-  steeringServo.write(135);  // Turn right
 }
 
 void stopMotors() {
@@ -78,6 +77,5 @@ void stopMotors() {
   analogWrite(MOTOR_ENA, 0);
   analogWrite(MOTOR_ENB, 0);
   motorStopped = true;
-  steeringServo.write(90);  // Center
 }
 
