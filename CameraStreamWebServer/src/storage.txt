@@ -1,0 +1,135 @@
+
+// put function declarations here:
+int onboardled = 33;
+
+/*
+void setup() {
+  pinMode(onboardled, OUTPUT);
+}
+
+void loop() {
+  digitalWrite(onboardled,HIGH);
+  delay(1000);
+  digitalWrite(onboardled,LOW);
+  delay(1000);
+}
+*/
+
+/*
+void setup() {
+  Serial.begin(115200);
+  delay(1000);
+  Serial.println("Hi Hi HIII pls type something");
+}
+
+void loop() {
+  if(Serial.available()){
+    char read = Serial.read();
+    Serial.println("You have print "+read);
+  }
+  
+  
+
+}
+*/
+
+/*
+#include <Arduino.h> 
+
+#define LED_PIN 33            // Onboard LED for ESP32-CAM
+#define PWM_CHANNEL 0
+#define PWM_FREQ 5000         // 5 kHz
+#define PWM_RESOLUTION 8      // 8-bit PWM (0-255)
+#define dutyCycle 254
+
+void setup() {
+  // Set up PWM (LEDC)
+  ledcSetup(PWM_CHANNEL, PWM_FREQ, PWM_RESOLUTION);
+  ledcAttachPin(LED_PIN, PWM_CHANNEL);
+
+}
+
+void loop() {
+    ledcWrite(PWM_CHANNEL, dutyCycle);
+
+}
+*/
+/*
+#include <WiFi.h>                // Includes the WiFi library for ESP32 WiFi functions
+#include <WebServer.h>           // Includes the WebServer library for serving web pages
+
+// Replace with your WiFi credentials
+const char* ssid = "KiraIphone";  // WiFi SSID (network name)
+const char* password = "kira1114"; // WiFi password
+
+WebServer server(80);            // Creates a web server object listening on port 80
+
+// Handles requests to the root URL "/"
+void handle_root() {
+  // Multi-line HTML for the main page using a raw string literal
+  const char* html = R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+  <title>ESP32 Input</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+  <h1>Send Text to ESP32</h1>
+  <form action="/submit" method="get">
+    <input type="text" name="input" placeholder="Type something...">
+    <input type="submit" value="Send">
+  </form>
+</body>
+</html>
+)rawliteral";
+  server.send(200, "text/html", html); // Sends the HTML page as a response with HTTP status 200
+}
+
+// Handles requests to "/submit" when the form is submitted
+void handle_submit() {
+  // Gets the value from the input field (named "input") if it exists
+  String inputValue = server.hasArg("input") ? server.arg("input") : "";
+  Serial.print("Received input: ");    // Prints a message to the Serial Monitor
+  Serial.println(inputValue);          // Prints the received value to the Serial Monitor
+
+  // Prepares HTML response showing the received input
+  String html = R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+  <title>ESP32 Input</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+)rawliteral";
+  html += "<h1>Received:</h1><p>" + inputValue + "</p>"; // Displays the received input
+  html += "<a href=\"/\">Back</a>";   // Adds a link to go back to the main page
+  html += "</body></html>";
+
+  server.send(200, "text/html", html); // Sends the HTML response with status 200
+}
+
+void setup() {
+  Serial.begin(115200);                // Starts serial communication at 115200 baud for debugging
+
+  WiFi.begin(ssid, password);          // Begins WiFi connection with provided credentials
+  Serial.print("Connecting to WiFi...");
+  while (WiFi.status() != WL_CONNECTED) { // Waits until connected to WiFi
+    delay(500);                        // Waits 500 milliseconds
+    Serial.print(".");                 // Prints a dot every half second while connecting
+  }
+  Serial.println("\nConnected!");      // Prints "Connected!" once WiFi is connected
+  Serial.print("ESP32 IP address: ");  // Prints the ESP32's local IP address
+  Serial.println(WiFi.localIP());      // Shows the actual IP address
+
+  server.on("/", handle_root);         // Associates the root URL "/" with the handle_root function
+  server.on("/submit", handle_submit); // Associates "/submit" with the handle_submit function
+
+  server.begin();                      // Starts the web server
+}
+
+void loop() {
+  server.handleClient();               // Handles incoming client requests in the main loop
+}
+*/
