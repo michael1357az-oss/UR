@@ -1,42 +1,42 @@
 #include <Arduino.h>
 int onboardled = 33;
 
-
 #include "esp_camera.h"
 #include <WiFi.h>
 #include <WebServer.h>
 
 // Replace with your network credentials
-const char* ssid = "KiraIphone";  // WiFi SSID (network name)
-const char* password = "kira1114"; // WiFi password
+const char *ssid = "KiraIphone";   // WiFi SSID (network name)
+const char *password = "kira1114"; // WiFi password
 
 // ==================
 // Camera Pin Settings for AI-Thinker Module
 // ==================
-#define PWDN_GPIO_NUM     32
-#define RESET_GPIO_NUM    -1
-#define XCLK_GPIO_NUM      0
-#define SIOD_GPIO_NUM     26
-#define SIOC_GPIO_NUM     27
+#define PWDN_GPIO_NUM 32
+#define RESET_GPIO_NUM -1
+#define XCLK_GPIO_NUM 0
+#define SIOD_GPIO_NUM 26
+#define SIOC_GPIO_NUM 27
 
-#define Y9_GPIO_NUM       35
-#define Y8_GPIO_NUM       34
-#define Y7_GPIO_NUM       39
-#define Y6_GPIO_NUM       36
-#define Y5_GPIO_NUM       21
-#define Y4_GPIO_NUM       19
-#define Y3_GPIO_NUM       18
-#define Y2_GPIO_NUM        5
-#define VSYNC_GPIO_NUM    25
-#define HREF_GPIO_NUM     23
-#define PCLK_GPIO_NUM     22
+#define Y9_GPIO_NUM 35
+#define Y8_GPIO_NUM 34
+#define Y7_GPIO_NUM 39
+#define Y6_GPIO_NUM 36
+#define Y5_GPIO_NUM 21
+#define Y4_GPIO_NUM 19
+#define Y3_GPIO_NUM 18
+#define Y2_GPIO_NUM 5
+#define VSYNC_GPIO_NUM 25
+#define HREF_GPIO_NUM 23
+#define PCLK_GPIO_NUM 22
 // ==================
 
 void startCameraServer();
 WebServer server(3585);
 
 // Stream JPG images as MJPEG over HTTP
-void handle_jpg_stream(void) {
+void handle_jpg_stream(void)
+{
   WiFiClient client = server.client();
   String response = "HTTP/1.1 200 OK\r\n";
   response += "Content-Type: multipart/x-mixed-replace; boundary=frame\r\n\r\n";
@@ -46,12 +46,14 @@ void handle_jpg_stream(void) {
   int frameCount = 0;
   unsigned long startTime = millis();
 
-  while (client.connected()) {
+  while (client.connected())
+  {
     unsigned long captureStart = micros(); // Start timing capture
     camera_fb_t *fb = esp_camera_fb_get();
     unsigned long captureTime = micros() - captureStart; // Time taken for capture
 
-    if (!fb) {
+    if (!fb)
+    {
       Serial.println("Camera capture failed");
       return;
     }
@@ -65,7 +67,8 @@ void handle_jpg_stream(void) {
 
     frameCount++;
     unsigned long currentTime = millis();
-    if (currentTime - lastTime >= 1000) { // Every second, calculate FPS
+    if (currentTime - lastTime >= 3000)
+    { // Every second, calculate FPS
       float fps = frameCount * 1000.0 / (currentTime - lastTime);
       Serial.printf("FPS: %.2f, Capture time: %lu us, Frame size: %u bytes\n", fps, captureTime, fb->len);
       frameCount = 0;
@@ -75,19 +78,22 @@ void handle_jpg_stream(void) {
 }
 
 // Main page handler
-void handle_root() {
+void handle_root()
+{
   String html = "<!DOCTYPE html><html><body><h1>ESP32-CAM Stream</h1><img src='/stream' /></body></html>";
   server.send(200, "text/html", html);
 }
 
 // Start the streaming web server
-void startCameraServer() {
+void startCameraServer()
+{
   server.on("/", HTTP_GET, handle_root);
   server.on("/stream", HTTP_GET, handle_jpg_stream);
   server.begin();
 }
 
-void setup() {
+void setup()
+{
   Serial.begin(115200);
   Serial.setDebugOutput(true);
   Serial.println();
@@ -111,10 +117,8 @@ void setup() {
   config.pin_sccb_scl = SIOC_GPIO_NUM;
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
-  config.xclk_freq_hz = 24000000;
+  config.xclk_freq_hz = 22000000;
   config.pixel_format = PIXFORMAT_JPEG;
-
-
 
   // ===== Frame size and quality configuration =====
   // To adjust resolution:
@@ -127,50 +131,38 @@ void setup() {
   //   FRAMESIZE_UXGA    1600x1200
   // To adjust JPEG quality: 0 (best) to 63 (worst), lower value = higher quality
 
-  if(psramFound()){
-    Serial.println("PSRAM Found");
-    config.frame_size = FRAMESIZE_HVGA;    // Resolution: 1024x768. Change to FRAMESIZE_VGA (640x480) or others as needed.
-    config.jpeg_quality = 10;             // JPEG quality. Lower = better image, but slower FPS.
-    config.fb_count = 3;
-  } else {
-    Serial.println("PSRAM not available");
-    config.frame_size = FRAMESIZE_QVGA;   // Lower resolution if PSRAM not available.
-    config.jpeg_quality = 12;
-    config.fb_count = 1;
-  }
+  config.frame_size = FRAMESIZE_HVGA; // Resolution: 1024x768. Change to FRAMESIZE_VGA (640x480) or others as needed.
+  config.jpeg_quality = 15;           // JPEG quality. Lower = better image, but slower FPS.
+  config.fb_count = 2;
+
   // ===============================================
 
   // Camera initialization
   esp_err_t err = esp_camera_init(&config);
-  if (err != ESP_OK) {
+  if (err != ESP_OK)
+  {
     Serial.printf("Camera init failed with error 0x%x", err);
     return;
   }
-  sensor_t *s = esp_camera_sensor_get(); 
-  /*s->set_ae_level(s, 0);  // 設置曝光級別（範圍 -2 到 2）
-  s->set_exposure_ctrl(s, 0);      // 禁用自動曝光
-  s->set_whitebal(s, 0);      // 禁用自動白平衡
-  s->set_gain_ctrl(s, 0); // 禁用自動增益
-  s->set_exposure_ctrl(s, 0); // 禁用自動曝光控制
-  */
+  sensor_t *s = esp_camera_sensor_get();
 
   // Connect to Wi-Fi
   WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
+  while (WiFi.status() != WL_CONNECTED)
+  {
     delay(500);
     Serial.print(".");
   }
   Serial.println("");
   Serial.println("WiFi connected");
-  Serial.printf("RSSI: %ld dBm\n", WiFi.RSSI()); // Print signal strength
   Serial.print("Camera Stream Ready! Go to: http://");
   Serial.print(WiFi.localIP());
-  Serial.print(":3585");
+  Serial.println(":3585");
   // Start web server
   startCameraServer();
 }
 
-void loop() {
+void loop()
+{
   server.handleClient();
 }
-
