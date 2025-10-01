@@ -20,7 +20,7 @@ const int RES = 8;             // 255
 const uint8_t MOTOR_CHA_A = 0; // LERC CHA A
 const uint8_t MOTOR_CHA_B = 1; // LERC CHA B
 
-uint8_t currentSpeedLeft = 0, currentSpeedRight = 0;
+uint8_t currentSpeedLeft = 180, currentSpeedRight = 180;
 
 const char *html_content = R"rawliteral(
  "<html><body><h1>RC Car Control</h1>"
@@ -45,52 +45,6 @@ void handle_root() {
 }
 
 void handle_jpg_stream();
-
-/*
-void startCameraServer() {
-//  server.on("/", HTTP_GET, handle_root);
-  server.on("/stream", HTTP_GET, handle_jpg_stream);
-  server.begin();
-}
-
-void handle_jpg_stream(void) {
-  WiFiClient client = server.client();
-  String response = "HTTP/1.1 200 OK\r\n";
-  response += "Content-Type: multipart/x-mixed-replace; boundary=frame\r\n\r\n";
-  server.sendContent(response);
-
-  uint64_t lastTime = millis();
-  int frameCount = 0;
-  uint64_t startTime = millis();
-
-  while (client.connected()) {
-    uint64_t captureStart = micros(); // Start timing capture
-    camera_fb_t *fb = esp_camera_fb_get();
-    uint64_t captureTime = micros() - captureStart; // Time taken for capture
-
-    if (!fb) {
-      Serial.println("Camera capture failed");
-      return;
-    }
-
-    response = "--frame\r\n";
-    response += "Content-Type: image/jpeg\r\n\r\n";
-    server.sendContent(response);
-    client.write(fb->buf, fb->len);
-    server.sendContent("\r\n");
-    esp_camera_fb_return(fb);
-
-    frameCount++;
-    unsigned long currentTime = millis();
-    if (currentTime - lastTime >= 1000) { // Every second, calculate FPS
-      float fps = frameCount * 1000.0 / (currentTime - lastTime);
-      Serial.printf("FPS: %.2f, Capture time: %lu us, Frame size: %u bytes\n", fps, captureTime, fb->len);
-      frameCount = 0;
-      lastTime = currentTime;
-    }
-  }
-}
-*/
 
 void handle_action() {
   if (server.hasArg("dir")) {
@@ -131,23 +85,22 @@ void setup() {
   pinMode(PIN_IN2, OUTPUT);
   pinMode(PIN_IN3, OUTPUT);
   pinMode(PIN_IN4, OUTPUT);
-  ledcChangeFrequency(MOTOR_CHA_A, FREQ, RES);
-  ledcChangeFrequency(MOTOR_CHA_B, FREQ, RES);
-  ledcAttachPin(PIN_ENA, MOTOR_CHA_A);
-  ledcAttachPin(PIN_ENB, MOTOR_CHA_B);
+  ledcSetup(MOTOR_CHA_A, FREQ, RES);
+  ledcSetup(MOTOR_CHA_B, FREQ, RES);
+  ledcWrite(PIN_ENA, MOTOR_CHA_A);
+  ledcWrite(PIN_ENB, MOTOR_CHA_B);
   motor_direction(0);
 
   //webserver
   server.on("/", handle_root);
   server.on("/action", handle_action);
   //startCameraServer();
-
+  server.begin();
   Serial.println("init complete");
 }
 
 void loop() {
   server.handleClient();
-  Serial.println(WiFi.localIP());
   delay(10);
 }
 
@@ -159,7 +112,10 @@ void motor_direction(int dir) {
   switch (dir) {
   case 0:
     Serial.println("Motor stop");
-    currentSpeedLeft = currentSpeedRight = 0u;
+    digitalWrite(PIN_IN1, LOW);
+    digitalWrite(PIN_IN2, LOW);
+    digitalWrite(PIN_IN3, LOW);
+    digitalWrite(PIN_IN4, LOW);
     break;
   case 1:
     Serial.println("Motor move forward");
@@ -187,7 +143,7 @@ void motor_direction(int dir) {
     digitalWrite(PIN_IN1, HIGH);
     digitalWrite(PIN_IN2, LOW);
     digitalWrite(PIN_IN3, LOW);
-    digitalWrite(PIN_IN4, HIGH);
+    digitalWrite(PIN_IN4, LOW);
     break;
   }
   /*
