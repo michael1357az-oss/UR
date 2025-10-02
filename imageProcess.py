@@ -1,214 +1,111 @@
-import time
 import cv2
 import numpy as np
-import pyapriltags
-# Initial values for thresholds and Canny
-lower_threshold = 50
-upper_threshold = 255
-canny1 = 240
-canny2 = 240
+from collections import deque
 
-# Initial values for black filter in HSV
-lower_hue = 0
-lower_saturation = 0
-lower_value = 0
-upper_hue = 180
-upper_saturation = 255
-upper_value = 50
+# 開啟攝影機
+cap = cv2.VideoCapture("http://172.20.10.5:3585/stream")  # IP 攝影機流
+if not cap.isOpened():
+    print("錯誤：無法開啟攝影機！")
+    exit()
 
-def on_canny1_change(val):
-    global canny1
-    canny1 = val
+# 創建顯示窗口
+cv2.namedWindow('Extracted Black Parts')
 
-def on_canny2_change(val):
-    global canny2
-    canny2 = val
+# 定義初始值
+threshold_value = 80
+min_area = 5000  # 初始最小面積
 
-def on_lower_threshold_change(val):
-    global lower_threshold
-    lower_threshold = val
+# 用於儲存最近 5 幀的形狀資訊
+shape_history = deque(maxlen=5)
 
-def on_upper_threshold_change(val):
-    global upper_threshold
-    upper_threshold = val
-
-def on_lower_hue_change(val):
-    global lower_hue
-    lower_hue = val
-
-def on_lower_saturation_change(val):
-    global lower_saturation
-    lower_saturation = val
-
-def on_lower_value_change(val):
-    global lower_value
-    lower_value = val
-
-def on_upper_hue_change(val):
-    global upper_hue
-    upper_hue = val
-
-def on_upper_saturation_change(val):
-    global upper_saturation
-    upper_saturation = max(1, val)  # Ensure non-zero to avoid invalid range
-
-def on_upper_value_change(val):
-    global upper_value
-    upper_value = max(1, val)  # Ensure non-zero to avoid invalid range
-
-def erosion_then_dilation(img):
-    imgcopy = img.copy()
-    kernel = np.ones((10, 10))
-    erosion = cv2.erode(imgcopy, kernel, iterations=1)
-    dilation = cv2.dilate(erosion, kernel, iterations=1)
-    return dilation
-
-def dilation_then_erosion(img):
-    imgcopy = img.copy()
-    kernel = np.ones((10, 10))
-    dilation = cv2.dilate(imgcopy, kernel, iterations=1)
-    erosion = cv2.erode(dilation, kernel, iterations=1)
-    return erosion
-
-def erosion(img):
-    imgcopy = img.copy()
-    kernel = np.ones((5, 5))
-    erosion = cv2.erode(imgcopy, kernel, iterations=1)
-    return erosion
-
-def filter_black(img):
-    # Convert image to HSV color space
-    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-
-    # Define range of black color in HSV
-    lower_black = np.array([lower_hue, lower_saturation, lower_value])
-    upper_black = np.array([upper_hue, upper_saturation, upper_value])
-
-    # Create mask for black pixels
-    mask = cv2.inRange(hsv, lower_black, upper_black)
-
-    # Apply mask to keep only black pixels
-    result = cv2.bitwise_and(img, img, mask=mask)
-    
-    return result, mask
-
-def read_mjpeg_stream(url):
-    # Open the MJPEG stream with OpenCV
-    cap = cv2.VideoCapture(url)
-    
-    if not cap.isOpened():
-        print("Failed to open stream")
-        return
-
-    """# Create windows for display
-    cv2.namedWindow('thresh')
-    cv2.namedWindow('canny')
-    cv2.namedWindow('black_filtered')
-    cv2.namedWindow('Controls', cv2.WINDOW_NORMAL)
-    
+# 回調函數
+def nothing(x):
+    pass
 
 
-    # Create trackbars for binary threshold (optional, if still needed)
-    cv2.createTrackbar('Lower Threshold', 'Controls', lower_threshold, 255, on_lower_threshold_change)
-    cv2.createTrackbar('Upper Threshold', 'Controls', upper_threshold, 255, on_upper_threshold_change)
-    cv2.createTrackbar('canny1', 'Controls', canny1, 255, on_canny1_change)
-    cv2.createTrackbar('canny2', 'Controls', canny2, 255, on_canny2_change)
+# 創建滑桿
+cv2.createTrackbar('Threshold', 'Extracted Black Parts', threshold_value, 255, nothing)
+cv2.createTrackbar('Min Area', 'Extracted Black Parts', min_area, 10000, nothing)
 
-    # Create trackbars for black filter (HSV ranges)
-    cv2.createTrackbar('Lower Hue', 'Controls', lower_hue, 179, on_lower_hue_change)
-    cv2.createTrackbar('Lower Saturation', 'Controls', lower_saturation, 255, on_lower_saturation_change)
-    cv2.createTrackbar('Lower Value', 'Controls', lower_value, 255, on_lower_value_change)
-    cv2.createTrackbar('Upper Hue', 'Controls', upper_hue, 179, on_upper_hue_change)
-    cv2.createTrackbar('Upper Saturation', 'Controls', upper_saturation, 255, on_upper_saturation_change)
-    cv2.createTrackbar('Upper Value', 'Controls', upper_value, 255, on_upper_value_change)"""
+while True:
+    # 讀取攝影機的每一幀
+    ret, frame = cap.read()
+    if not ret:
+        print("錯誤：無法讀取攝影機畫面！")
+        break
 
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            print("Failed to capture frame")
-            break
+    # 將畫面轉換為灰度圖
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        # Apply bilateral filter
-        bilateral = cv2.bilateralFilter(frame, 9, 75, 75)
-        
-        # Apply black filter
-        black_filtered, mask = filter_black(bilateral)
-        
-        # Apply morphological operations to the mask
-        thresh1 = dilation_then_erosion(mask)
-        thresh1 = erosion(thresh1)
-        
-        # Optional: Convert to grayscale if needed elsewhere
-        gray = cv2.cvtColor(bilateral, cv2.COLOR_BGR2GRAY)
-        
-        # Optional: Canny on the processed mask (but for contours, we use the binary mask directly)
-        canny = cv2.Canny(thresh1, canny1, canny2)
-        
-        # Find contours directly on the processed mask for better blob detection
-        contours, hierarchy = cv2.findContours(thresh1, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
-        # Create canvas for drawing
-        canvas = np.zeros_like(frame)
+    # 從滑桿獲取當前閾值和最小面積
+    threshold_value = cv2.getTrackbarPos('Threshold', 'Extracted Black Parts')
+    min_area = cv2.getTrackbarPos('Min Area', 'Extracted Black Parts')
 
-        # Draw the largest contour
-        
-        if len(contours) > 0:
-            # Filter contours by minimum area to ignore noise (adjust min_area as needed)
-            min_area = 100  # Example threshold; tune based on your setup
-            large_contours = [c for c in contours if cv2.contourArea(c) > min_area]
-            
-            if len(large_contours) > 0:
-                largest_contour = max(large_contours, key=cv2.contourArea)
-                # Draw only the largest contour in green
-                cv2.drawContours(canvas, [largest_contour], -1, (0, 255, 0), 1)
-                # Print area and number of points in the largest contour
-                area = cv2.contourArea(largest_contour)
-                """print(f"Area of largest contour: {area}")
-                print(f"Number of points in largest contour: {len(largest_contour)}")"""
-                # Compute centroid using moments
-                M = cv2.moments(largest_contour)
-                if M["m00"] != 0:  # Avoid division by zero
-                    cx = int(M["m10"] / M["m00"])  # Centroid x-coordinate
-                    cy = int(M["m01"] / M["m00"])  # Centroid y-coordinate
-                    print(f"Centroid of largest contour: ({cx}, {cy})")
-                    # Draw centroid as a red dot
-                    cv2.circle(canvas, (cx, cy), 5, (0, 0, 255), -1)
-                """"else:
-                    print("Centroid not computed (area is zero)")
-            else:
-                print("No large contours detected")
-        else:
-            print("No contours detected")"""
+    # 二值化處理
+    _, binary = cv2.threshold(gray, threshold_value, 255, cv2.THRESH_BINARY_INV)
 
-        # Display the frames
-        #cv2.imshow('original', frame)
-        cv2.imshow('bilateral', bilateral)
-        #cv2.imshow('black_filtered', black_filtered)
-        cv2.imshow('gray', gray)
-        #cv2.imshow('thresh', thresh1)
-        #cv2.imshow('canny', canny)
-        cv2.imshow('biggestContour', canvas)
+    # 形態學操作去除噪點
+    kernel = np.ones((5,5), np.uint8)
+    cleaned = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel, iterations=2)
+    cleaned = cv2.morphologyEx(cleaned, cv2.MORPH_CLOSE, kernel, iterations=2)
 
-        detector = pyapriltags.Detector(families='tag36h11')
-        # Detect AprilTags in the image
-        detections = detector.detect(gray)
+    # 創建結果圖片
+    result = np.zeros_like(frame)
+    result[cleaned == 255] = frame[cleaned == 255]
 
-        # Check if any tags were detected
-        if len(detections) == 0:
-            pass
-        else:
-            # Iterate through detected tags and print their IDs
-            for tag in detections:
-                print(f"Detected AprilTag ID: {tag.tag_id}")
-        # Press 'q' to quit
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-        time.sleep(0.05)
+    # 輪廓檢測
+    contours, _ = cv2.findContours(cleaned, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    # Clean up
-    cap.release()
-    cv2.destroyAllWindows()
+    # 複製原始畫面用於繪製輪廓
+    contour_frame = frame.copy()
+    current_shape = None
 
-if __name__ == "__main__":
-    stream_url = "http://172.20.10.5:3585/stream"  # Update with actual IP
-    read_mjpeg_stream(stream_url)
+    # 分析每個輪廓
+    for contour in contours:
+        # 忽略面積小於 min_area 的輪廓
+        if cv2.contourArea(contour) < min_area:
+            continue
+
+        # 近似輪廓
+        epsilon = 0.02 * cv2.arcLength(contour, True)
+        approx = cv2.approxPolyDP(contour, epsilon, True)
+
+        # 獲取頂點數（邊數）
+        num_vertices = len(approx)
+
+        # 判斷形狀
+        shape = "Quadrilateral" if num_vertices == 4 else f"Polygon ({num_vertices} sides)"
+        if num_vertices <= 7:
+            # 繪製輪廓
+            cv2.drawContours(contour_frame, [approx], -1, (0, 255, 0), 2)
+
+            # 標註形狀
+            x, y = approx[0][0]  # 使用第一個頂點作為標註位置
+            cv2.putText(contour_frame, shape, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+            # 儲存當前形狀（假設每個幀只考慮一個主要輪廓）
+            current_shape = num_vertices
+
+
+    # 將當前形狀加入歷史記錄
+    shape_history.append(current_shape)
+
+    # 檢查最近 5 幀是否都是矩形
+    if len(shape_history) == 5 and sum(1 for shape in shape_history if shape == 4 or shape==5) >= 4:
+        print("forward")
+    else:
+        print("stop")
+
+    # 顯示原始畫面（帶輪廓和標註）、二值化結果和提取結果
+    cv2.imshow('Original Video with Contours', contour_frame)
+    cv2.imshow("Non Cleaned Image", binary)
+    cv2.imshow('Binary Image', cleaned)
+    cv2.imshow('Extracted Black Parts', result)
+
+    # 按 'q' 鍵退出
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+# 釋放攝影機並關閉窗口
+cap.release()
+cv2.destroyAllWindows()
