@@ -1,10 +1,9 @@
 #include "Arduino.h"
 #include "WebServer.h"
 #include "WiFi.h"
-#include "bits/stdc++.h"
 #include "esp32-hal-ledc.h"
 #include "esp_camera.h"
-//#include "Servo.h"
+#include "ESP32Servo.h"
 
 // Motor Pin
 const int PIN_IN1 = 12;
@@ -21,195 +20,91 @@ const int RES = 8;             // 255
 const uint8_t MOTOR_CHA_A = 0; // LERC CHA A
 const uint8_t MOTOR_CHA_B = 1; // LERC CHA B
 
-uint8_t currentSpeedLeft = 0, currentSpeedRight = 0;
+// Motor control
+uint8_t current_speed = 0;
+bool motor_break = 0;
+int prev_action = 1;
 
 const char *html_content = R"rawliteral(
 <!DOCTYPE html>
-<html>
 <head>
-    <title>ESP32 Motor Control</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>
-        body{font-family:Arial,sans-serif;margin:0;background-color:#282c34;color:white;display:flex;min-height:100vh}
-        .sidebar{width:100px;background-color:#3c4049;padding:20px 0;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:2px 0 5px rgba(0,0,0,0.2);position:sticky;top:0;height:100vh}
-        .sidebar.right{box-shadow:-2px 0 5px rgba(0,0,0,0.2)}
-        .main-content{flex-grow:1;text-align:center;padding:20px}
-        h1{color:#61dafb;margin-top:0}
-        .btn-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:300px;margin:20px auto}
-        .btn{padding:20px;font-size:1.2em;cursor:pointer;border:none;border-radius:5px;background-color:#61dafb;color:#282c34;text-decoration:none;display:block}
-        .btn:active{background-color:#4fa8c8}
-        .stop{grid-column:2;background-color:#ff5555}
-        .placeholder{visibility:hidden}
-        .speed-control{display:flex;flex-direction:column;align-items:center;height:100%;justify-content:center;position:relative}
-        label{font-size:1.1em;transform:rotate(-90deg);white-space:nowrap;position:absolute;top:50%;transform-origin:0 0;z-index:1}
-        .sidebar.left label{left:-35px}
-        .sidebar.right label{left:-40px}
-        input[type="range"]{-webkit-appearance:none;appearance:none;width:150px;height:15px;background:#555;outline:none;border-radius:5px;transform:rotate(-90deg);margin:0;position:relative;z-index:0}
-        input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:30px;height:30px;border-radius:50%;background:#61dafb;cursor:pointer}
-        input[type="range"]::-moz-range-thumb{width:30px;height:30px;border-radius:50%;background:#61dafb;cursor:pointer}
-        .speed-value-display{margin-top:20px;font-size:1.2em;font-weight:bold}
-    </style>
+  <title>ESP32</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { text-align: center; font-family: Arial, sans-serif; }
+    table { margin: 0 auto; border-collapse: collapse; }
+    td { padding: 5px; }
+    button { width: 80px; height: 40px; font-size: 16px; }
+    .stop-btn { background-color:#ff4d4d; width:165px; margin-top:10px; } 
+  </style>
 </head>
 <body>
-    <aside class="sidebar left">
-        <div class="speed-control">
-            <label for="speedLeft">L Speed</label>
-            <input type="range" id="speedLeft" min="0" max="255" value="%CURRENT_SPEED_LEFT%" oninput="updateSpeed('left', this.value)">
-            <div class="speed-value-display"><span id="speedValueLeft">%CURRENT_SPEED_LEFT%</span></div>
-        </div>
-    </aside>
-    <main class="main-content">
-        <h1>Motor Control</h1>
-        <div class="btn-grid">
-            <div class="placeholder"></div><a href="/action?dir=1"><button class="btn">▲</button></a><div class="placeholder"></div>
-            <a href="/action?dir=2"><button class="btn">◄</button></a><a href="/action?dir=0"><button class="btn stop">STOP</button></a><a href="/action?dir=4"><button class="btn">►</button></a>
-            <div class="placeholder"></div><a href="/action?dir=3"><button class="btn">▼</button></a><div class="placeholder"></div>
-        </div>
-    </main>
-    <aside class="sidebar right">
-        <div class="speed-control">
-            <label for="speedRight">R Speed</label>
-            <input type="range" id="speedRight" min="0" max="255" value="%CURRENT_SPEED_RIGHT%" oninput="updateSpeed('right', this.value)">
-            <div class="speed-value-display"><span id="speedValueRight">%CURRENT_SPEED_RIGHT%</span></div>
-        </div>
-    </aside>
-    <script>
-        function updateSpeed(motor, value){
-            document.getElementById('speedValue'+(motor.charAt(0).toUpperCase()+motor.slice(1))).innerText=value;
-            fetch('/speed?motor='+motor+'&value='+value);
-        }
-        document.addEventListener('DOMContentLoaded',function(){
-            const initialSpeedLeft=%CURRENT_SPEED_LEFT%;
-            document.getElementById('speedLeft').value=initialSpeedLeft;
-            document.getElementById('speedValueLeft').innerText=initialSpeedLeft;
-            const initialSpeedRight=%CURRENT_SPEED_RIGHT%;
-            document.getElementById('speedRight').value=initialSpeedRight;
-            document.getElementById('speedValueRight').innerText=initialSpeedRight;
-        });
-    </script>
+    <h1>RC Mode</h1>
+    <table>
+        <tr>
+            <td></td>
+            <td><a href="/action?dir=1"><button>UP</button></a></td>
+            <td></td>
+        </tr>
+        <tr>
+            <td><a href="/action?dir=4"><button>LEFT</button></a></td>
+            <td></td> <td><a href="/action?dir=2"><button>RIGHT</button></a></td>
+        </tr>
+        <tr>
+            <td></td>
+            <td><a href="/action?dir=3"><button>DOWN</button></a></td>
+            <td></td>
+        </tr>
+    </table>
+    <div>
+        <a href="/action?dir=0"><button class="stop-btn">BREAK/RESUME</button></a>
+    </div>
+    <hr>
+    <h1>Speed Control</h1>
+    <div>Current speed: %CURRENT_SPEED%</div>
+    <form action="/speed" method="GET">
+      Speed (0-255): 
+      <input type="range" name="speed" min="0" max="255" value="%CURRENT_SPEED%">
+      <input type="submit" value="Set Speed">
+    </form>
 </body>
-</html>
 )rawliteral";
 
-// wifi setting
-const char *ssid = "pppppp";
-const char *password = "310110199701093724";
+//wifi setting
+const char *ssid = "Linksys_2.4G";
+const char *password = "kasumi714";
 
 // Webserver
 WebServer server(80);
 
+// Servo
+Servo upper_servo;
+Servo lower_servo;
+
+// Control Function
 void motor_direction(int dir);
+void automatic_mode(); 
+//Web Server Function
+void handle_root();
+void handle_action();
+void handle_speed();
 
-void handle_root() {
-  String page = html_content;
-  // Insert the current speed values for both motors into the HTML
-  page.replace("%CURRENT_SPEED_LEFT%", String(currentSpeedLeft));
-  page.replace("%CURRENT_SPEED_RIGHT%", String(currentSpeedRight));
-  server.send(200, "text/html", page);
-}
-
-void handle_jpg_stream();
-
-/*
-void startCameraServer() {
-//  server.on("/", HTTP_GET, handle_root);
-  server.on("/stream", HTTP_GET, handle_jpg_stream);
-  server.begin();
-}
-
-void handle_jpg_stream(void) {
-  WiFiClient client = server.client();
-  String response = "HTTP/1.1 200 OK\r\n";
-  response += "Content-Type: multipart/x-mixed-replace; boundary=frame\r\n\r\n";
-  server.sendContent(response);
-
-  uint64_t lastTime = millis();
-  int frameCount = 0;
-  uint64_t startTime = millis();
-
-  while (client.connected()) {
-    uint64_t captureStart = micros(); // Start timing capture
-    camera_fb_t *fb = esp_camera_fb_get();
-    uint64_t captureTime = micros() - captureStart; // Time taken for capture
-
-    if (!fb) {
-      Serial.println("Camera capture failed");
-      return;
-    }
-
-    response = "--frame\r\n";
-    response += "Content-Type: image/jpeg\r\n\r\n";
-    server.sendContent(response);
-    client.write(fb->buf, fb->len);
-    server.sendContent("\r\n");
-    esp_camera_fb_return(fb);
-
-    frameCount++;
-    unsigned long currentTime = millis();
-    if (currentTime - lastTime >= 1000) { // Every second, calculate FPS
-      float fps = frameCount * 1000.0 / (currentTime - lastTime);
-      Serial.printf("FPS: %.2f, Capture time: %lu us, Frame size: %u bytes\n", fps, captureTime, fb->len);
-      frameCount = 0;
-      lastTime = currentTime;
-    }
-  }
-}
-*/
-
-void handle_action() {
-  if (server.hasArg("dir")) {
-    int dir = server.arg("dir").toInt();
-    motor_direction(dir);
-  }
-  server.sendHeader("Location", "/", true);
-  server.send(302, "text/plain", "");
-}
-
-// Updated handler to control individual motor speed
-void handle_speed() {
-  if (server.hasArg("motor") && server.hasArg("value")) {
-    String motor = server.arg("motor");
-    int speed = server.arg("value").toInt();
-    speed = constrain(speed, 0, 255);
-
-    if (motor == "left") {
-      currentSpeedLeft = speed;
-      ledcWrite(MOTOR_CHA_A, currentSpeedLeft);
-      Serial.print("Left motor speed set to: ");
-      Serial.println(currentSpeedLeft);
-    } else if (motor == "right") {
-      currentSpeedRight = speed;
-      ledcWrite(MOTOR_CHA_B, currentSpeedRight);
-      Serial.print("Right motor speed set to: ");
-      Serial.println(currentSpeedRight);
-    }
-  }
-  server.send(200, "text/plain", "OK");
-}
-
-// Auto mode for line tracking
-void automatic_mode() {
-  // TODO
-}
-
-
-// Motor Direction control
 
 void setup() {
-  Serial.begin(115200);
-  delay(100);
+  Serial.begin(9600);
+  delay(1000);
 
   // Wifi
-  Serial.print("Connecting to");
-  Serial.println(ssid);
+  Serial.printf("Connecting to %s with the password %s \n",ssid,password);
   WiFi.begin(ssid, password);
+  Serial.printf("Connecting");
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
-    Serial.print(".");
+    Serial.printf(".");
   }
-  Serial.println("");
-  Serial.println("WIFI Connected");
-  Serial.print("IP Address:");
+  Serial.printf("\n");
+
+  Serial.print("WIFI Connected,go to http://");
   Serial.println(WiFi.localIP());
   
   // pin setting
@@ -217,49 +112,71 @@ void setup() {
   pinMode(PIN_IN2, OUTPUT);
   pinMode(PIN_IN3, OUTPUT);
   pinMode(PIN_IN4, OUTPUT);
-  ledcChangeFrequency(MOTOR_CHA_A, FREQ, RES);
-  ledcChangeFrequency(MOTOR_CHA_B, FREQ, RES);
+  ledcSetup(MOTOR_CHA_A, FREQ, RES);
+  ledcSetup(MOTOR_CHA_B, FREQ, RES);
   ledcAttachPin(PIN_ENA, MOTOR_CHA_A);
   ledcAttachPin(PIN_ENB, MOTOR_CHA_B);
-  motor_direction(0);
+  
+  // Stop motor
+  Serial.println("Motor stopped");
+  digitalWrite(PIN_IN1, LOW);
+  digitalWrite(PIN_IN2, LOW);
+  digitalWrite(PIN_IN3, LOW);
+  digitalWrite(PIN_IN4, LOW);
 
-  //webserver
+  //Webserver
+  server.begin();
   server.on("/", handle_root);
   server.on("/action", handle_action);
-  server.on("/speed", handle_speed);
-  //startCameraServer();
+  server.on("/speed",handle_speed);
+  server.begin();
 
   Serial.println("init complete");
 }
+
 
 void loop() {
   server.handleClient();
   delay(10);
 }
 
+
 void motor_direction(int dir) {
   dir = constrain(dir, 0, 4);
-  ledcWrite(MOTOR_CHA_A, currentSpeedLeft);
-  ledcWrite(MOTOR_CHA_B, currentSpeedRight);
-      // when dir = 0, stop
+  ledcWrite(MOTOR_CHA_A, current_speed);
+  ledcWrite(MOTOR_CHA_B, current_speed);
+  // when dir = 0, stop
   switch (dir) {
   case 0:
-    Serial.println("Motor stop");
-    currentSpeedLeft = currentSpeedRight = 0u;
-    break;
+    if(!motor_break){
+      Serial.println("Motor break");
+      digitalWrite(PIN_IN1, LOW);
+      digitalWrite(PIN_IN2, LOW);
+      digitalWrite(PIN_IN3, LOW);
+      digitalWrite(PIN_IN4, LOW);
+      motor_break = 1;
+      break;
+    }else{
+      Serial.println("Motor resume");
+      motor_break = 0;
+      motor_direction(prev_action); 
+      break;
+    }
   case 1:
     Serial.println("Motor move forward");
     digitalWrite(PIN_IN1, HIGH);
     digitalWrite(PIN_IN2, LOW);
     digitalWrite(PIN_IN3, HIGH);
     digitalWrite(PIN_IN4, LOW);
+    prev_action = dir;
     break;
   case 2:
     Serial.println("Motor move left");
-    digitalWrite(PIN_IN1, HIGH); // when motor1 at left side
-    digitalWrite(PIN_IN2, LOW);
-    digitalWrite(PIN_IN3, LOW); // turn off
+    digitalWrite(PIN_IN1, LOW); // Clockwise 
+    digitalWrite(PIN_IN2, HIGH);
+    digitalWrite(PIN_IN3, HIGH); // Anti-clockwise 
     digitalWrite(PIN_IN4, LOW);
+    prev_action = dir;
     break;
   case 3:
     Serial.println("Motor move backward");
@@ -267,13 +184,15 @@ void motor_direction(int dir) {
     digitalWrite(PIN_IN2, HIGH);
     digitalWrite(PIN_IN3, LOW);
     digitalWrite(PIN_IN4, HIGH);
+    prev_action = dir;
     break;
   case 4:
     Serial.println("Motor move right");
-    digitalWrite(PIN_IN1, HIGH);
+    digitalWrite(PIN_IN1, HIGH); // Anti-clockwise
     digitalWrite(PIN_IN2, LOW);
-    digitalWrite(PIN_IN3, LOW);
+    digitalWrite(PIN_IN3, LOW); // Clockwise
     digitalWrite(PIN_IN4, HIGH);
+    prev_action = dir;
     break;
   }
   /*
@@ -281,4 +200,41 @@ void motor_direction(int dir) {
     4     2
      * 3
   */
+}
+
+
+void automatic_mode(){
+  //TODO  
+}
+
+
+void handle_root() {
+  String page = html_content;
+  page.replace("%CURRENT_SPEED%", String(current_speed));
+  server.send(200, "text/html", page);
+}
+
+
+void handle_action() {
+  if (server.hasArg("dir")) {
+    int dir = server.arg("dir").toInt();
+    if(dir == -1) automatic_mode();
+    else motor_direction(dir);
+  }
+  server.sendHeader("Location", "/", true);
+  server.send(302, "text/plain", "");
+}
+
+
+void handle_speed(){ 
+  if(server.hasArg("speed")){
+    uint8_t speed = server.arg("speed").toInt();
+    current_speed = constrain(speed,0,255);
+    
+    ledcWrite(MOTOR_CHA_A, current_speed);
+    ledcWrite(MOTOR_CHA_B, current_speed);
+    Serial.printf("Current speed: %d\n",current_speed);
+  }
+  server.sendHeader("Location","/",true);
+  server.send(302,"text/plain","");
 }
