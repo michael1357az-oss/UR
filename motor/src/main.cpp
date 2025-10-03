@@ -1,27 +1,38 @@
 #include "Arduino.h"
 #include "WebServer.h"
 #include "WiFi.h"
-#include "esp32-hal-ledc.h"
+//#include "esp32-hal-ledc.h"
 #include "esp_camera.h"
 #include "ESP32Servo.h"
 
 // Motor Pin
-const int PIN_IN1 = 12;
-const int PIN_IN2 = 13;
-const int PIN_IN3 = 15;
-const int PIN_IN4 = 16;
+const int PIN_IN1 = 14;
+const int PIN_IN2 = 15;
+const int PIN_IN3 = 13;
+const int PIN_IN4 = 12;
+
+// Servo Pin
+const int PIN_SER_U = 6;
+const int PIN_SER_L = 2;
+
 // pwm pin
+
+/*
 const int PIN_ENA = 2;
 const int PIN_ENB = 14;
+*/
 
+/*
 // pwm
 const int FREQ = 5000;         // PWN FREQ
 const int RES = 8;             // 255
 const uint8_t MOTOR_CHA_A = 0; // LERC CHA A
 const uint8_t MOTOR_CHA_B = 1; // LERC CHA B
+*/
+
 
 // Motor control
-uint8_t current_speed = 0;
+//uint8_t current_speed = 0;
 bool motor_break = 0;
 int prev_action = 1;
 
@@ -59,20 +70,31 @@ const char *html_content = R"rawliteral(
     <div>
         <a href="/action?dir=0"><button class="stop-btn">BREAK/RESUME</button></a>
     </div>
+    <div>
+        <a href="/action?dir=-1"><button class="stop-btn">AUTO</button></a>
+    </div>
     <hr>
     <h1>Speed Control</h1>
     <div>Current speed: %CURRENT_SPEED%</div>
-    <form action="/speed" method="GET">
-      Speed (0-255): 
-      <input type="range" name="speed" min="0" max="255" value="%CURRENT_SPEED%">
+    <div>Current Upper Servo angle: %CURRENT_UPPERSERVO%</div>
+    <div>Current Lower Servo angle: %CURRENT_LOWERSERVO%</div>
+    <div><form action="/speed" method="GET">
+      Depatched (Speed (0-255):) 
+      (<input type="range" name="speed" min="0" max="255" value="%CURRENT_SPEED%">)
       <input type="submit" value="Set Speed">
-    </form>
+    </form></div>
+    <div><form action="/servo" method="GET">
+      Upper/Lower Servo angle(0-180):
+      <input type="range" name="upper_angle" min="0" max="180" value="%CURRENT_UPPERSERVO%">
+      <input type="range" name="lower_angle" min="0" max="180" value="%CURRENT_LOWERSERVO%">
+      <input type="submit" value="Set angle">
+    </form></div>
 </body>
 )rawliteral";
 
 //wifi setting
-const char *ssid = "Linksys_2.4G";
-const char *password = "kasumi714";
+const char *ssid = "pppppp";
+const char *password = "310110199701093724";
 
 // Webserver
 WebServer server(80);
@@ -80,6 +102,7 @@ WebServer server(80);
 // Servo
 Servo upper_servo;
 Servo lower_servo;
+int current_upper_angle = 0,current_lower_angle = 0;
 
 // Control Function
 void motor_direction(int dir);
@@ -87,11 +110,11 @@ void automatic_mode();
 //Web Server Function
 void handle_root();
 void handle_action();
-void handle_speed();
-
+//void handle_speed();
+void handle_servo();
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
   delay(1000);
 
   // Wifi
@@ -108,15 +131,22 @@ void setup() {
   Serial.println(WiFi.localIP());
   
   // pin setting
-  pinMode(PIN_IN1, OUTPUT);
-  pinMode(PIN_IN2, OUTPUT);
-  pinMode(PIN_IN3, OUTPUT);
-  pinMode(PIN_IN4, OUTPUT);
+  pinMode(PIN_IN1, OUTPUT); pinMode(PIN_IN3, OUTPUT); 
+  pinMode(PIN_IN2, OUTPUT); pinMode(PIN_IN4, OUTPUT);
+
+  upper_servo.attach(PIN_SER_U);
+  lower_servo.attach(PIN_SER_L);
+  
+  upper_servo.write(current_upper_angle); 
+  lower_servo.write(current_lower_angle);
+ 
+  /*
   ledcSetup(MOTOR_CHA_A, FREQ, RES);
   ledcSetup(MOTOR_CHA_B, FREQ, RES);
   ledcAttachPin(PIN_ENA, MOTOR_CHA_A);
   ledcAttachPin(PIN_ENB, MOTOR_CHA_B);
-  
+  */
+
   // Stop motor
   Serial.println("Motor stopped");
   digitalWrite(PIN_IN1, LOW);
@@ -128,7 +158,8 @@ void setup() {
   server.begin();
   server.on("/", handle_root);
   server.on("/action", handle_action);
-  server.on("/speed",handle_speed);
+  //server.on("/speed",handle_speed);
+  server.on("/servo",handle_servo);
   server.begin();
 
   Serial.println("init complete");
@@ -137,14 +168,17 @@ void setup() {
 
 void loop() {
   server.handleClient();
-  delay(10);
+  delay(5);
 }
 
 
 void motor_direction(int dir) {
   dir = constrain(dir, 0, 4);
+  /*
   ledcWrite(MOTOR_CHA_A, current_speed);
   ledcWrite(MOTOR_CHA_B, current_speed);
+  */
+
   // when dir = 0, stop
   switch (dir) {
   case 0:
@@ -155,12 +189,12 @@ void motor_direction(int dir) {
       digitalWrite(PIN_IN3, LOW);
       digitalWrite(PIN_IN4, LOW);
       motor_break = 1;
-      break;
+      return;
     }else{
       Serial.println("Motor resume");
       motor_break = 0;
       motor_direction(prev_action); 
-      break;
+      return;
     }
   case 1:
     Serial.println("Motor move forward");
@@ -168,7 +202,6 @@ void motor_direction(int dir) {
     digitalWrite(PIN_IN2, LOW);
     digitalWrite(PIN_IN3, HIGH);
     digitalWrite(PIN_IN4, LOW);
-    prev_action = dir;
     break;
   case 2:
     Serial.println("Motor move left");
@@ -176,7 +209,6 @@ void motor_direction(int dir) {
     digitalWrite(PIN_IN2, HIGH);
     digitalWrite(PIN_IN3, HIGH); // Anti-clockwise 
     digitalWrite(PIN_IN4, LOW);
-    prev_action = dir;
     break;
   case 3:
     Serial.println("Motor move backward");
@@ -184,7 +216,6 @@ void motor_direction(int dir) {
     digitalWrite(PIN_IN2, HIGH);
     digitalWrite(PIN_IN3, LOW);
     digitalWrite(PIN_IN4, HIGH);
-    prev_action = dir;
     break;
   case 4:
     Serial.println("Motor move right");
@@ -192,9 +223,10 @@ void motor_direction(int dir) {
     digitalWrite(PIN_IN2, LOW);
     digitalWrite(PIN_IN3, LOW); // Clockwise
     digitalWrite(PIN_IN4, HIGH);
-    prev_action = dir;
     break;
   }
+  motor_break = 0;
+  prev_action = dir;
   /*
      * 1
     4     2
@@ -210,10 +242,11 @@ void automatic_mode(){
 
 void handle_root() {
   String page = html_content;
-  page.replace("%CURRENT_SPEED%", String(current_speed));
-  server.send(200, "text/html", page);
+  page.replace("%CURRENT_SPEED%", String("Depatched"));
+  page.replace("%CURRENT_UPPERSERVO%",String(current_upper_angle));
+  page.replace("%CURRENT_LOWERSERVO%",String(current_lower_angle));
+  server.send(200, "text/html", page);  page.replace("%CURRENT_UPPERSERVO",String(current_lower_angle));
 }
-
 
 void handle_action() {
   if (server.hasArg("dir")) {
@@ -225,7 +258,7 @@ void handle_action() {
   server.send(302, "text/plain", "");
 }
 
-
+/*
 void handle_speed(){ 
   if(server.hasArg("speed")){
     uint8_t speed = server.arg("speed").toInt();
@@ -234,6 +267,26 @@ void handle_speed(){
     ledcWrite(MOTOR_CHA_A, current_speed);
     ledcWrite(MOTOR_CHA_B, current_speed);
     Serial.printf("Current speed: %d\n",current_speed);
+  }
+  server.sendHeader("Location","/",true);
+  server.send(302,"text/plain","");
+}
+*/
+
+void handle_servo(){
+  if(server.hasArg("upper_angle")){
+    int ang = server.arg("upper_angle").toInt();
+    ang = constrain(ang,0,180);
+    upper_servo.write(ang);
+    current_upper_angle = ang;
+    Serial.printf("Upper Servo Angle: %d\n",current_upper_angle);
+  }
+  if(server.hasArg("lower_angle")){
+    int ang = server.arg("lower_angle").toInt();
+    ang = constrain(ang,0,180);
+    lower_servo.write(ang);
+    current_lower_angle = ang;
+    Serial.printf("Lower Servo Angle: %d\n",current_lower_angle);
   }
   server.sendHeader("Location","/",true);
   server.send(302,"text/plain","");
