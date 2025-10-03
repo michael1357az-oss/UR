@@ -8,8 +8,8 @@
         {
             "name": "PlatformIO",
             "includePath": [
-                "C:/Users/User/Desktop/UR/CameraStreamWebServer/include",
-                "C:/Users/User/Desktop/UR/CameraStreamWebServer/src",
+                "C:/Users/User/Downloads/UR/CameraStreamWebServer/include",
+                "C:/Users/User/Downloads/UR/CameraStreamWebServer/src",
                 "C:/Users/User/.platformio/packages/framework-arduinoespressif32/libraries/WebServer/src",
                 "C:/Users/User/.platformio/packages/framework-arduinoespressif32/libraries/FS/src",
                 "C:/Users/User/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src",
@@ -209,7 +209,7 @@
                 "C:/Users/User/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/dio_qspi/include",
                 "C:/Users/User/.platformio/packages/framework-arduinoespressif32/cores/esp32",
                 "C:/Users/User/.platformio/packages/framework-arduinoespressif32/variants/esp32",
-                "C:/Users/User/Desktop/UR/CameraStreamWebServer/.pio/libdeps/esp32cam/Unity/src",
+                "C:/Users/User/Downloads/UR/CameraStreamWebServer/.pio/libdeps/esp32cam/Unity/src",
                 "C:/Users/User/.platformio/packages/framework-arduinoespressif32/libraries/ArduinoOTA/src",
                 "C:/Users/User/.platformio/packages/framework-arduinoespressif32/libraries/AsyncUDP/src",
                 "C:/Users/User/.platformio/packages/framework-arduinoespressif32/libraries/BLE/src",
@@ -245,8 +245,8 @@
             "browse": {
                 "limitSymbolsToIncludedHeaders": true,
                 "path": [
-                    "C:/Users/User/Desktop/UR/CameraStreamWebServer/include",
-                    "C:/Users/User/Desktop/UR/CameraStreamWebServer/src",
+                    "C:/Users/User/Downloads/UR/CameraStreamWebServer/include",
+                    "C:/Users/User/Downloads/UR/CameraStreamWebServer/src",
                     "C:/Users/User/.platformio/packages/framework-arduinoespressif32/libraries/WebServer/src",
                     "C:/Users/User/.platformio/packages/framework-arduinoespressif32/libraries/FS/src",
                     "C:/Users/User/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src",
@@ -446,7 +446,7 @@
                     "C:/Users/User/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/dio_qspi/include",
                     "C:/Users/User/.platformio/packages/framework-arduinoespressif32/cores/esp32",
                     "C:/Users/User/.platformio/packages/framework-arduinoespressif32/variants/esp32",
-                    "C:/Users/User/Desktop/UR/CameraStreamWebServer/.pio/libdeps/esp32cam/Unity/src",
+                    "C:/Users/User/Downloads/UR/CameraStreamWebServer/.pio/libdeps/esp32cam/Unity/src",
                     "C:/Users/User/.platformio/packages/framework-arduinoespressif32/libraries/ArduinoOTA/src",
                     "C:/Users/User/.platformio/packages/framework-arduinoespressif32/libraries/AsyncUDP/src",
                     "C:/Users/User/.platformio/packages/framework-arduinoespressif32/libraries/BLE/src",

@@ -3,7 +3,7 @@ import numpy as np
 from collections import deque
 
 # 開啟攝影機
-cap = cv2.VideoCapture("http://172.20.10.5:3585/stream")  # IP 攝影機流
+cap = cv2.VideoCapture("http://172.20.10.5/stream")  # IP 攝影機流
 if not cap.isOpened():
     print("錯誤：無法開啟攝影機！")
     exit()
@@ -13,10 +13,10 @@ cv2.namedWindow('Extracted Black Parts')
 
 # 定義初始值
 threshold_value = 80
-min_area = 5000  # 初始最小面積
+min_area = 1000  # 初始最小面積
 
-# 用於儲存最近 5 幀的形狀資訊
-shape_history = deque(maxlen=10)
+# 用於儲存最近 10 幀的形狀資訊
+shape_history = deque(maxlen=20)
 
 # 回調函數
 def nothing(x):
@@ -25,7 +25,7 @@ def nothing(x):
 # 分類轉彎方向的函數（基於頂部和底部平均 x 座標的啟發式方法）
 def classify_turn(approx):
     points = approx.reshape(-1, 2).astype(np.float32)
-    if len(points) < 6:
+    if len(points) < 4:  # 至少需要4個點來形成矩形
         return None
     
     # 計算質心
@@ -66,6 +66,17 @@ def classify_turn(approx):
     else:
         return "turn_right"
 
+# 檢查矩形是否寬度大於高度
+def is_width_greater_than_height(approx):
+    points = approx.reshape(-1, 2)
+    min_x = np.min(points[:, 0])
+    max_x = np.max(points[:, 0])
+    min_y = np.min(points[:, 1])
+    max_y = np.max(points[:, 1])
+    width = max_x - min_x
+    height = max_y - min_y
+    return width > height
+
 # 創建滑桿
 cv2.createTrackbar('Threshold', 'Extracted Black Parts', threshold_value, 255, nothing)
 cv2.createTrackbar('Min Area', 'Extracted Black Parts', min_area, 10000, nothing)
@@ -76,6 +87,12 @@ while True:
     if not ret:
         print("錯誤：無法讀取攝影機畫面！")
         break
+
+    # 獲取畫面尺寸並裁剪上半部
+    height, width = frame.shape[:2]
+    frame = frame[height//2:height, :]
+    #frame = cv2.flip(frame, 0)  # 垂直翻轉
+    #frame = cv2.flip(frame, 1)  # 水平翻轉
 
     # 將畫面轉換為灰度圖
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -88,7 +105,7 @@ while True:
     _, binary = cv2.threshold(gray, threshold_value, 255, cv2.THRESH_BINARY_INV)
 
     # 形態學操作去除噪點
-    kernel = np.ones((5,5), np.uint8)
+    kernel = np.ones((10,10), np.uint8)
     cleaned = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel, iterations=2)
     cleaned = cv2.morphologyEx(cleaned, cv2.MORPH_CLOSE, kernel, iterations=2)
 
@@ -102,13 +119,14 @@ while True:
     # 複製原始畫面用於繪製輪廓
     contour_frame = frame.copy()
     current_shape = None
+    direction_text = "forward"
 
     if contours:
-        # 找到面積最大的輪廓索引（用於決定 shape_history）
+        # 找到面積最大的輪廓索引
         areas = [cv2.contourArea(c) for c in contours]
         largest_idx = np.argmax(areas)
         
-        # 分析每個輪廓（繪製所有符合條件的，但只用最大的決定 current_shape）
+        # 分析每個輪廓
         for i, contour in enumerate(contours):
             # 忽略面積小於 min_area 的輪廓
             if cv2.contourArea(contour) < min_area:
@@ -124,48 +142,58 @@ while True:
             # 判斷形狀
             shape_text = "Quadrilateral" if num_vertices == 4 else f"Polygon ({num_vertices} sides)"
             
-            if num_vertices <= 7:
-                # 繪製輪廓
-                cv2.drawContours(contour_frame, [approx], -1, (0, 255, 0), 2)
+            # 繪製輪廓
+            cv2.drawContours(contour_frame, [approx], -1, (0, 255, 0), 2)
 
-                # 如果是最大的輪廓，決定 current_shape
-                if i == largest_idx:
-                    if num_vertices == 4 or num_vertices == 5:
-                        current_shape = "forward"
-                        shape_text = "Forward"
-                    elif num_vertices == 6 or num_vertices == 7:
+            # 如果是最大的輪廓，檢查是否為矩形並且寬度大於高度
+            if i == largest_idx:
+                if num_vertices == 4 or num_vertices == 5:
+                    if is_width_greater_than_height(approx):
                         turn_dir = classify_turn(approx)
                         if turn_dir:
                             current_shape = turn_dir
                             shape_text = turn_dir.replace("_", " ")
                         else:
                             current_shape = None
-                            shape_text = f"Polygon ({num_vertices}) - Unknown"
+                            shape_text = f"Quadrilateral - Unknown"
+                    else:
+                        current_shape = None
+                        shape_text = "Rectangle (width <= height)"
+                else:
+                    current_shape = None
+                    shape_text = f"Polygon ({num_vertices})"
 
-                # 標註形狀（使用第一個頂點作為標註位置）
-                if len(approx) > 0:
-                    x, y = approx[0][0]
-                    cv2.putText(contour_frame, shape_text, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+            # 標註形狀（使用第一個頂點作為標註位置）
+            if len(approx) > 0:
+                x, y = approx[0][0]
+                cv2.putText(contour_frame, shape_text, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
-    # 將當前形狀加入歷史記錄
-    shape_history.append(current_shape)
+    # 將當前形狀加入歷史記錄（僅限符合條件的形狀）
+    if current_shape in ["turn_left", "turn_right"]:
+        shape_history.append(current_shape)
 
-    # 檢查最近 5 幀的主導形狀並決定輸出
-    if len(shape_history) == 10:
-        forward_count = sum(1 for s in shape_history if s == "forward")
+    # 當檢測到寬度大於高度的矩形時，根據歷史記錄決定輸出
+    if current_shape in ["turn_left", "turn_right"]:
         left_count = sum(1 for s in shape_history if s == "turn_left")
         right_count = sum(1 for s in shape_history if s == "turn_right")
-        
-        if forward_count >= 8:
-            print("forward")
-        elif left_count >= 8:
-            print("turn left")
-        elif right_count >= 8:
-            print("turn right")
+        if (abs(left_count-right_count)>=10):#ensure it is not half-half situation
+
+            if left_count > right_count:
+                direction_text = "turn left"
+                print("turn left")
+            elif right_count > left_count:
+                direction_text = "turn right"
+                print("turn right")
         else:
-            print("stop")
+            direction_text = "forward"
+            print("forward")
     else:
-        print("stop")
+        direction_text = "forward"
+        print("forward")
+
+    # 在畫面上添加方向文字
+    cv2.putText(contour_frame, f"Direction: {direction_text}", (10, 30), 
+                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
     # 顯示原始畫面（帶輪廓和標註）、二值化結果和提取結果
     cv2.imshow('Original Video with Contours', contour_frame)
