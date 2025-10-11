@@ -97,7 +97,9 @@ while True:
     frame = frame[height//2:height, :]
     #frame = cv2.flip(frame, 0)  # 垂直翻轉
     #frame = cv2.flip(frame, 1)  # 水平翻轉
-
+    frame1=frame
+    # Apply bilateral filter
+    frame = cv2.bilateralFilter(frame, 9, 75, 75)
     # 將畫面轉換為灰度圖
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
@@ -214,6 +216,7 @@ while True:
                 cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
     # 顯示原始畫面（帶輪廓和標註）、二值化結果和提取結果
+    cv2.imshow('Original Video no any process', frame1)
     cv2.imshow('Original Video with Contours', contour_frame)
     cv2.imshow("Non Cleaned Image", binary)
     cv2.imshow('Binary Image', cleaned)
