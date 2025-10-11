@@ -6,9 +6,10 @@ int onboardled = 33;
 #include <WebServer.h>
 
 // Replace with your network credentials
-const char *ssid = "KiraIphone";   // WiFi SSID (network name)
-const char *password = "kira1114"; // WiFi password
-
+//const char *ssid = "KiraIphone";   // WiFi SSID (network name)
+//const char *password = "kira1114"; // WiFi password
+const char *ssid = "UR-FallTrain";   // WiFi SSID (network name)
+const char *password = "falltrain"; // WiFi password
 
 // ==================
 // Camera Pin Settings for AI-Thinker Module
