@@ -2,6 +2,9 @@ import cv2
 import numpy as np
 from collections import deque
 
+import requests
+#馬達webserverIP
+motorIP="http://172.20.10.9"
 # 開啟攝影機
 cap = cv2.VideoCapture("http://172.20.10.5/stream")  # IP 攝影機流
 if not cap.isOpened():
@@ -16,7 +19,8 @@ threshold_value = 80
 min_area = 1000  # 初始最小面積
 
 # 用於儲存最近 10 幀的形狀資訊
-shape_history = deque(maxlen=20)
+shape_history = deque(maxlen=30)
+last_action=None
 
 # 回調函數
 def nothing(x):
@@ -176,20 +180,34 @@ while True:
     if current_shape in ["turn_left", "turn_right"]:
         left_count = sum(1 for s in shape_history if s == "turn_left")
         right_count = sum(1 for s in shape_history if s == "turn_right")
-        if (abs(left_count-right_count)>=10):#ensure it is not half-half situation
+        if (abs(left_count-right_count)>=18):#ensure it is not half-half situation(at least 80:20)
 
             if left_count > right_count:
                 direction_text = "turn left"
-                print("turn left")
+                if(last_action!="turn left"):
+                    last_action="turn left"
+                    print("turn left")
+                    requests.get(motorIP+"/action?dir=2")
             elif right_count > left_count:
                 direction_text = "turn right"
-                print("turn right")
+                if(last_action!="turn right"):
+                    last_action="turn right"
+                    print("turn right")
+                    requests.get(motorIP+"/action?dir=4")
         else:
             direction_text = "forward"
-            print("forward")
+            if(last_action!="forward"):
+                last_action="forward"
+                print("forward")
+                requests.get(motorIP+"/action?dir=1")
+            
+            
     else:
         direction_text = "forward"
-        print("forward")
+        if(last_action!="forward"):
+            last_action="forward"
+            print("forward")
+            requests.get(motorIP+"/action?dir=1")
 
     # 在畫面上添加方向文字
     cv2.putText(contour_frame, f"Direction: {direction_text}", (10, 30), 
