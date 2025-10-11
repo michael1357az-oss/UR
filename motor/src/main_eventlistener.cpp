@@ -1,11 +1,10 @@
 #include "Arduino.h"
 #include "WebServer.h"
 #include "WiFi.h"
-#include "esp_camera.h"
 #include "ESP32Servo.h"
 #include "esp_wifi.h"
 
-#define UPPER_SERVO false
+#define UPPER_SERVO false 
 #define LOWER_SERVO true
 #define L_MOTOR true
 #define R_MOTOR true
@@ -18,17 +17,17 @@ const int PIN_ENA = 2;
 #endif
 
 #if R_MOTOR 
-const int PIN_IN3 = 0;
+const int PIN_IN3 = 14;
 const int PIN_IN4 = 0;
-const int PIN_ENB = 0; 
+const int PIN_ENB = 4; 
 #endif
 
 // Servo Pin
 #if UPPER_SERVO
-const int PIN_SER_U = 14; // 14
+const int PIN_SER_U = 3; 
 #endif
 #if LOWER_SERVO
-const int PIN_SER_L = 15; // 15 
+const int PIN_SER_L = 15;
 #endif
 //wifi setting
 const char *ssid = "pppppp";
@@ -154,7 +153,6 @@ const char *html_content = R"rawliteral(
 
 // Control Function
 void motor_direction(int dir);
-void automatic_mode(); 
 //Web Server Function
 void handle_root();
 void handle_action();
@@ -168,9 +166,7 @@ void setup() {
   // Wifi
   WiFi.begin(ssid, password);
   Serial.printf("Connecting to %s with the password ",ssid);
-  for(int i=0;i<strlen(password);++i){
-    Serial.printf("*");
-  }
+  for(int i=0;i<strlen(password);++i)  Serial.printf("*");
   Serial.println();
   
   
@@ -186,10 +182,10 @@ void setup() {
   
   // pin setting
   #if L_MOTOR
-  pinMode(PIN_IN1, OUTPUT); pinMode(PIN_IN3, OUTPUT);  pinMode(PIN_ENA, OUTPUT);
+  pinMode(PIN_IN1, OUTPUT); pinMode(PIN_IN2, OUTPUT);  pinMode(PIN_ENA, OUTPUT);
   #endif
   #if R_MOTOR
-  pinMode(PIN_IN2, OUTPUT); pinMode(PIN_IN4, OUTPUT); pinMode(PIN_ENB,OUTPUT); 
+  pinMode(PIN_IN3, OUTPUT); pinMode(PIN_IN4, OUTPUT); pinMode(PIN_ENB,OUTPUT); 
   #endif
 
   #if UPPER_SERVO
@@ -229,7 +225,6 @@ void setup() {
 
 void loop() {
   server.handleClient();
-  delay(10);
 }
 
 
@@ -251,34 +246,68 @@ void motor_direction(int dir) {
     }else{
       Serial.println("Motor resume");
       motor_break = 0;
-      analogWrite(PIN_ENA,current_speed_l); analogWrite(PIN_ENB,current_speed_r);
+
+      #if L_MOTOR
+      analogWrite(PIN_ENA,current_speed_l);
+      #endif
+      #if R_MOTOR
+      analogWrite(PIN_ENB,current_speed_r);
+      #endif
+
       Serial.printf("Motor L Speed: %d Motor R Speed: %d\n",current_speed_l,current_speed_r);
       motor_direction(prev_action); 
       return;
     }
   case 1:
     Serial.println("Motor move forward");
+    #if L_MOTOR
     digitalWrite(PIN_IN1, HIGH); digitalWrite(PIN_IN2, LOW);
+    #endif
+    #if R_MOTOR
     digitalWrite(PIN_IN3, HIGH); digitalWrite(PIN_IN4, LOW);
+    #endif
     break;
   case 2:
     Serial.println("Motor move left");
+    #if L_MOTOR
     digitalWrite(PIN_IN1, LOW); digitalWrite(PIN_IN2, HIGH);
+    #endif
+    #if R_MOTOR
     digitalWrite(PIN_IN3, HIGH); digitalWrite(PIN_IN4, LOW);
+    #endif
     break;
   case 3:
     Serial.println("Motor move backward");
+    #if L_MOTOR
     digitalWrite(PIN_IN1, LOW); digitalWrite(PIN_IN2, HIGH);
+    #endif
+    #if R_MOTOR
     digitalWrite(PIN_IN3, LOW); digitalWrite(PIN_IN4, HIGH);
+    #endif
     break;
   case 4:
     Serial.println("Motor move right");
+    #if L_MOTOR
     digitalWrite(PIN_IN1, HIGH); digitalWrite(PIN_IN2, LOW);
+    #endif
+    #if R_MOTOR
     digitalWrite(PIN_IN3, LOW); digitalWrite(PIN_IN4, HIGH);
+    #endif
     break;
   }
   motor_break = 0;
   prev_action = dir;
+  #if L_MOTOR
+  analogWrite(PIN_ENA,current_speed_l);
+  Serial.printf("Current speed left:%d\n",current_speed_l);
+  #endif
+  #if R_MOTOR
+  analogWrite(PIN_ENB,current_speed_r);
+  Serial.printf("Current speed right:%d\n",current_speed_r);
+  #endif
+  
+
+
   /*
      * 1
     4     2
